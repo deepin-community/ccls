@@ -1,0 +1,5 @@
+Tests: lsp-test
+Depends:
+ python3,
+ @,
+Restrictions: allow-stderr
