@@ -1,0 +1,45 @@
+.TH ccls 1 "Aug 2019"
+
+.SH NAME
+ccls - C/C++/Objective-C language server
+
+.SH SYNOPSIS
+.B ccls [options]
+
+.SH OPTIONS
+.TP
+-h
+alias for -help
+.TP
+-index=<root>
+standalone mode: index a project and exit
+.TP
+-init=<string>
+extra initialization options in JSON
+.TP
+-log-file=<file>
+stderr or log file
+.TP
+-log-file-append
+append to log file
+.TP
+-test-index=<string>
+run index tests
+.TP
+-v=<int>
+verbosity, from -3 (fatal) to 2 (verbose)
+
+.SH SEE ALSO
+.IP 1. 4
+https://github.com/MaskRay/ccls/wiki
+.IP 2. 4
+https://langserver.org/
+
+.SH NOTES
+
+This command is not intended for direct use. You should have an
+LSP(Language Server Protocol) client for your editors.
+
+.SH AUTHOR
+This manual page was written by Shengjing Zhu <zhsj@debian.org>,
+for the Debian GNU/Linux system (but may be used by others).

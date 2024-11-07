@@ -1,4 +1,25 @@
 #!/usr/bin/make -f
 
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+include /usr/share/dpkg/default.mk
+
+CLANG_VER := $(shell ls /usr/include/clang | grep '^[0-9]\+$$'| head -n 1)
+CLANG_RESOURCE_DIR := /usr/include/clang/$(CLANG_VER)
+CCLS_SUBSTVARS += -Vccls:Recommends=$(shell dpkg-query -S $(CLANG_RESOURCE_DIR) | sed -e 's/: .*//')
+
+CMAKE_OPTS += -DCCLS_VERSION=$(DEB_VERSION)
+CMAKE_OPTS += -DCLANG_RESOURCE_DIR=$(CLANG_RESOURCE_DIR)
+
 %:
 	dh $@
+
+override_dh_auto_configure:
+	dh_auto_configure -- $(CMAKE_OPTS)
+
+override_dh_gencontrol:
+	dh_gencontrol -- $(CCLS_SUBSTVARS)
+
+# upstream tests need building with clang-6, but we don't
+override_dh_auto_test:
+	CCLS=obj-$(DEB_HOST_GNU_TYPE)/ccls debian/tests/lsp-test

@@ -1,0 +1,171 @@
+#!/usr/bin/python3
+
+import json
+import os
+import pprint
+import re
+import shutil
+import subprocess
+import time
+import unittest
+
+ccls = os.getenv("CCLS", "ccls")
+path = os.path.dirname(os.path.realpath(__file__))
+version = re.findall(
+    r"ccls version ([\S]+)",
+    subprocess.check_output([ccls, "--version"]).decode().strip(),
+)[0]
+
+tests = [
+    (
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {"rootUri": "file://" + path},
+        },
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+                "capabilities": {
+                    "textDocumentSync": {
+                        "openClose": True,
+                        "change": 2,
+                        "willSave": False,
+                        "willSaveWaitUntil": False,
+                        "save": {"includeText": False},
+                    },
+                    "hoverProvider": True,
+                    "completionProvider": {
+                        "resolveProvider": False,
+                        "triggerCharacters": [".", ":", ">", "#", "<", '"', "/"],
+                    },
+                    "signatureHelpProvider": {"triggerCharacters": ["(", ","]},
+                    "declarationProvider": True,
+                    "definitionProvider": True,
+                    "implementationProvider": True,
+                    "typeDefinitionProvider": True,
+                    "referencesProvider": True,
+                    "documentHighlightProvider": True,
+                    "documentSymbolProvider": True,
+                    "workspaceSymbolProvider": True,
+                    "codeActionProvider": {"codeActionKinds": ["quickfix"]},
+                    "codeLensProvider": {"resolveProvider": False},
+                    "documentFormattingProvider": True,
+                    "documentRangeFormattingProvider": True,
+                    "documentOnTypeFormattingProvider": {
+                        "firstTriggerCharacter": "}",
+                        "moreTriggerCharacter": [],
+                    },
+                    "renameProvider": True,
+                    "documentLinkProvider": {"resolveProvider": True},
+                    "foldingRangeProvider": True,
+                    "executeCommandProvider": {"commands": ["ccls.xref"]},
+                    "callHierarchyProvider": True,
+                    "workspace": {
+                        "workspaceFolders": {
+                            "supported": True,
+                            "changeNotifications": True,
+                        }
+                    },
+                },
+                "serverInfo": {"name": "ccls", "version": version},
+                "offsetEncoding": "utf-32",
+            },
+        },
+    ),
+    (
+        {"jsonrpc": "2.0", "id": 1, "method": "$ccls/info"},
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+                "db": {"files": 1, "funcs": 0, "types": 1, "vars": 1},
+                "pipeline": {"lastIdle": 0, "completed": 1, "enqueued": 1},
+                "project": {"entries": 1},
+            },
+        },
+    ),
+    (
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "workspace/symbol",
+            "params": {"query": "test"},
+        },
+        {
+            "id": 1,
+            "jsonrpc": "2.0",
+            "result": [
+                {
+                    "kind": 13,
+                    "location": {
+                        "range": {
+                            "end": {"character": 12, "line": 0},
+                            "start": {"character": 4, "line": 0},
+                        },
+                        "uri": "file://" + path + "/sample.c",
+                    },
+                    "name": "int test_var",
+                }
+            ],
+        },
+    ),
+]
+
+
+def encode(msg):
+    msg_str = json.dumps(msg)
+    rpc_str = "Content-Length: %d\r\n\r\n%s" % (len(msg_str), msg_str)
+    return rpc_str.encode()
+
+
+def read(f):
+    size = int(re.findall(r"Content-Length: (\d+)", f.readline().decode())[0])
+    f.readline()
+    return json.loads(f.read(size).decode())
+
+
+class TestLSP(unittest.TestCase):
+    maxDiff = None
+    timeout = 100
+
+    def tearDown(self):
+        shutil.rmtree(path + "/.ccls-cache", ignore_errors=True)
+
+    def test_index(self):
+        subprocess.run(
+            [ccls, "-index=.", "-v=-1"], stderr=subprocess.STDOUT
+        ).check_returncode()
+
+    def test_response(self):
+        with subprocess.Popen(
+            [ccls, "-v=-1"], stdin=subprocess.PIPE, stdout=subprocess.PIPE
+        ) as proc:
+
+            def one(case):
+                for i in range(self.timeout):
+                    proc.stdin.write(encode(case[0]))
+                    proc.stdin.flush()
+                    got = read(proc.stdout)
+                    try:
+                        self.assertEqual(case[1], got)
+                        break
+                    except:
+                        if i < self.timeout - 1:
+                            time.sleep(0.1)
+                        else:
+                            raise
+
+            print()
+            for tt in tests:
+                msg = tt[0]["method"]
+                with self.subTest(msg):
+                    print("Running", msg)
+                    one(tt)
+            proc.stdin.close()
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
